@@ -27,8 +27,16 @@ impl Ui {
         }
     }
 
+    fn reset_state(&mut self) {
+        self.current_comic_index = 0;
+        self.current_page_index = 0;
+        self.current_image = None;
+        self.current_image_size = egui::Vec2::new(0.0, 0.0);
+        self.current_texture = None;
+    }
+
     pub fn tick(&mut self, ctx: &CtxRef, frame: &mut epi::Frame<'_>) {
-        if !&ctx.input().raw.dropped_files.is_empty() {
+        if !ctx.input().raw.dropped_files.is_empty() {
             let dropped_files = ctx
                 .input()
                 .raw
@@ -44,9 +52,8 @@ impl Ui {
                 FileSystemCollectionProvider::new("collection name".to_string(), dropped_files)
                     .unwrap();
 
+            self.reset_state();
             self.collection = Some(Arc::new(collection));
-            self.current_comic_index = 0;
-            self.current_page_index = 0;
         }
 
         if let Some(collection) = self.collection.clone() {
@@ -60,15 +67,19 @@ impl Ui {
             }
         }
 
-        egui::CentralPanel::default().show(ctx, |ui: &mut egui::Ui| {
-            if let Some(texture_id) = self.current_texture {
-                ui.image(texture_id, self.current_image_size);
-            } else {
-                if let Some((texture, size)) = self.render_current_page(frame) {
-                    self.current_texture = Some(texture);
-                    self.current_image_size = size;
-                }
+        if self.current_texture.is_none() {
+            if let Some((texture, size)) = self.render_current_page(frame) {
+                self.current_texture = Some(texture);
+                self.current_image_size = size;
             }
+        }
+
+        egui::CentralPanel::default().show(ctx, |ui: &mut egui::Ui| {
+            ui.centered_and_justified(|ui| {
+                if let Some(texture_id) = self.current_texture {
+                    ui.image(texture_id, self.current_image_size);
+                }
+            });
         });
     }
 
