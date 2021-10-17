@@ -13,14 +13,14 @@ pub enum ProviderError {
 
 pub trait CollectionProvider {
     fn get_name(&self) -> String;
-    fn get_comic(&self, index: usize) -> Arc<Option<&dyn ComicProvider>>;
+    fn get_comic(&self, index: usize) -> Option<Box<dyn ComicProvider>>;
     fn get_size(&self) -> usize;
 }
 
 pub trait ComicProvider {
     fn open(&self) -> Result<()>;
     fn get_title(&self) -> String;
-    fn get_page(&self, index: usize) -> Option<Box<dyn PageProvider>>;
+    fn get_page(&mut self, index: usize) -> Option<Box<dyn PageProvider>>;
     fn get_length(&self) -> usize;
 }
 

@@ -3,14 +3,10 @@
 mod app;
 mod ui;
 mod providers;
+mod resource;
 
-fn main() {
-    let options = eframe::NativeOptions {
-        drag_and_drop_support: true,
-        ..eframe::NativeOptions::default()
-    };
+fn main() -> Result<(), String> {
+    let mut app = app::App::new();
 
-    let app = app::App::new();
-
-    eframe::run_native(Box::new(app), options);
+    app.run()
 }

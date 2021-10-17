@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fs::File, io::Cursor, path::PathBuf, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, fs::File, io::Cursor, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use compress_tools::{list_archive_files, uncompress_archive_file};
@@ -6,22 +6,16 @@ use image::io::Reader as ImageReader;
 
 use super::{CollectionProvider, ComicProvider, PageProvider, ProviderError};
 
-#[derive(Debug)]
 pub struct FileSystemCollectionProvider {
     collection_name: String,
-    comics: Vec<FileSystemComicProvider>,
+    paths: Vec<PathBuf>,
 }
 
 impl FileSystemCollectionProvider {
     pub fn new(collection_name: String, paths: Vec<PathBuf>) -> Result<Self> {
-        let comics: Vec<_> = paths
-            .iter()
-            .map(|path| FileSystemComicProvider::new(path.clone()).unwrap())
-            .collect();
-
         Ok(Self {
             collection_name,
-            comics,
+            paths,
         })
     }
 }
@@ -31,23 +25,25 @@ impl CollectionProvider for FileSystemCollectionProvider {
         self.collection_name.clone()
     }
 
-    fn get_comic(&self, index: usize) -> Arc<Option<&dyn ComicProvider>> {
-        let comic = self.comics.get(index).map(|p| p as &dyn ComicProvider);
+    fn get_comic(&self, index: usize) -> Option<Box<dyn ComicProvider>> {
+        let path = self.paths.get(index).unwrap();
 
-        Arc::new(comic)
+        let comic = FileSystemComicProvider::new(path.to_path_buf()).unwrap();
+
+        Some(Box::new(comic))
     }
 
     fn get_size(&self) -> usize {
-        self.comics.len()
+        self.paths.len()
     }
 }
 
-#[derive(Debug)]
 pub struct FileSystemComicProvider {
     title: String,
     path: PathBuf,
     archive: File,
     file_list: Vec<String>,
+    cache: HashMap<usize, Vec<u8>>,
 }
 
 impl FileSystemComicProvider {
@@ -66,6 +62,7 @@ impl FileSystemComicProvider {
                     path,
                     archive,
                     file_list,
+                    cache: HashMap::new(),
                 })
             }
             _ => Err(ProviderError::InvalidArchiveType),
@@ -82,22 +79,39 @@ impl ComicProvider for FileSystemComicProvider {
         self.title.clone()
     }
 
-    fn get_page(&self, index: usize) -> Option<Box<dyn PageProvider>> {
+    fn get_page(&mut self, index: usize) -> Option<Box<dyn PageProvider>> {
         let file_name = self.file_list.get(index).unwrap();
 
-        let mut img_buffer = Vec::default();
+        let img = match self.cache.contains_key(&index) {
+            true => {
+                let buffer = self.cache.get(&index).unwrap().clone();
 
-        uncompress_archive_file(&self.archive, &mut img_buffer, file_name).unwrap();
+                ImageReader::new(Cursor::new(buffer))
+                    .with_guessed_format()
+                    .unwrap()
+                    .decode()
+                    .unwrap()
+            }
 
-        let image = ImageReader::new(Cursor::new(img_buffer))
-            .with_guessed_format()
-            .unwrap()
-            .decode()
-            .unwrap();
+            false => {
+                let mut buffer = Vec::new();
+                uncompress_archive_file(&self.archive, &mut buffer, &file_name).unwrap();
+
+                let image = ImageReader::new(Cursor::new(buffer.clone()))
+                    .with_guessed_format()
+                    .unwrap()
+                    .decode()
+                    .unwrap();
+
+                self.cache.insert(index, buffer);
+
+                image
+            }
+        };
 
         let page_provider = FileSystemPageProvider {
             file_name: file_name.to_string(),
-            image_buffer: image,
+            image_buffer: img,
         };
 
         Some(Box::new(page_provider))
