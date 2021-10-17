@@ -8,12 +8,12 @@ pub trait ResourceLoader<'l, R> {
 }
 
 pub struct TextureManager<'l, T> {
-    texture_creator: TextureCreator<T>,
+    texture_creator: &'l TextureCreator<T>,
     cache: HashMap<String, Rc<Texture<'l>>>,
 }
 
 impl<'l, T> TextureManager<'l, T> {
-    pub fn new(texture_creator: TextureCreator<T>) -> Self {
+    pub fn new(texture_creator: &'l TextureCreator<T>) -> Self {
         TextureManager {
             texture_creator,
             cache: HashMap::new(),

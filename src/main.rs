@@ -6,7 +6,8 @@ mod providers;
 mod resource;
 
 fn main() -> Result<(), String> {
-    let mut app = app::App::new();
+    let mut w = &mut app::windowing_bits();
+    let mut app = app::App::new(&mut w);
 
     app.run()
 }

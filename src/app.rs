@@ -1,37 +1,58 @@
 use anyhow::Result;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color, video::WindowContext};
+use sdl2::{event::Event, keyboard::Keycode, pixels::Color, video::WindowContext, render::TextureCreator};
 
 use crate::{providers::{CollectionProvider, file_system::FileSystemCollectionProvider}, resource::TextureManager};
 
 #[derive(Default)]
 pub struct AppState {}
 
-pub struct App<'a> {
+pub struct WindowingBits {
     sdl_context: sdl2::Sdl,
     canvas: sdl2::render::Canvas<sdl2::video::Window>,
+    texture_creator: TextureCreator<WindowContext>,
+}
+
+pub fn windowing_bits() -> WindowingBits {
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem
+        .window("comik", 1280, 720)
+        .position_centered()
+        .opengl()
+        .build()
+        .unwrap();
+
+    let canvas = window.into_canvas().build().unwrap();
+
+    let texture_creator = canvas.texture_creator();
+
+    WindowingBits {
+        sdl_context,
+        canvas,
+        texture_creator,
+    }
+}
+
+pub struct App<'a> {
+    sdl_context: &'a mut sdl2::Sdl,
+    canvas: &'a mut sdl2::render::Canvas<sdl2::video::Window>,
     collection: Option<Arc<dyn CollectionProvider>>,
     comic_index: usize,
     texture_manager: TextureManager<'a, WindowContext>,
     page_index: usize,
 }
 
-impl App<'_> {
-    pub fn new() -> Self {
-        let sdl_context = sdl2::init().unwrap();
-        let video_subsystem = sdl_context.video().unwrap();
+impl<'a> App<'a> {
+    pub fn new(windowing_bits: &'a mut WindowingBits) -> Self {
+        let WindowingBits {
+            sdl_context,
+            canvas,
+            texture_creator,
+        } = windowing_bits;
 
-        let window = video_subsystem
-            .window("comik", 1280, 720)
-            .position_centered()
-            .opengl()
-            .build()
-            .unwrap();
-
-        let canvas = window.into_canvas().build().unwrap();
-
-        let texture_creator = canvas.texture_creator();
         let texture_manager = TextureManager::new(texture_creator);
 
         Self {
@@ -113,11 +134,5 @@ impl App<'_> {
         }
 
         Ok(())
-    }
-}
-
-impl Default for App<'_> {
-    fn default() -> Self {
-        Self::new()
     }
 }
